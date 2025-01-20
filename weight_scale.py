@@ -38,7 +38,7 @@ def Tare_scale():
     """ Calibrate the scale by setting tare and performing interpolation. """
     global tare_value
     print("Starting taring...")
-    ser = serial.Serial(serial_port, baud_rate, timeout=1)
+    ser = serial.Serial(serial_port, baud_rate, timeout=10)
     
     line = ser.readline().decode('utf-8').strip()
     time.sleep(5)  # Optional: Add a small delay to ensure the data is ready
