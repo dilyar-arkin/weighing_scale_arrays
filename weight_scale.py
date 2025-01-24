@@ -3,7 +3,7 @@ import time
 import numpy as np
 from datetime import datetime
 
-# Load the interpolation data (volume-to-grams map) from the .npy file
+# Load the interpolation data (volume-to-grams calibration data) from the .npy file
 interpolation_data = np.load('interpolation_data.npy', allow_pickle=True)
 interpolator = interpolation_data.item()  # Assuming it's stored as a dictionary
 
@@ -19,7 +19,7 @@ file_path = 'arduino_log.txt'  # Update path as needed
 tare_value = None
 
 def interpolate_to_volume(sensor_value):
-    """ Interpolate sensor value to volume (mL) using linear model. """
+    """ Interpolate individual sensor value to volume (mL) using linear model. """
     try:
         volume_mL = (sensor_value - intercept) / slope
         return volume_mL
@@ -30,7 +30,7 @@ def interpolate_to_volume(sensor_value):
 def convert_to_grams(volume_mL):
     """ Convert volume in mL to grams (assuming 1mL = 1g). """
     if volume_mL is not None:
-        return volume_mL  # Assuming 1 mL = 1 gram for water, adjust for different density
+        return volume_mL  # Assuming 1 mL = 1 gram for water, adjust for different densities.
     else:
         return None
 
@@ -53,13 +53,11 @@ def Tare_scale():
                     if len(parts) == 2:
                         sensor_value = float(parts[1].strip())  # Convert the reading to float
                         sensor_values.append(sensor_value)
-                
                 # If the tare value is set, subtract it from the current sensor value
-                # Perform interpolation to get volume (mL)
+                # Perform interpolation for each loadcell
                 if sensor_values:
-                    volume_mL = interpolate_to_volume(sensor_values[0])  # Assuming Loadcell 1 is used for tare
-                    tare_value = volume_mL
-                    print(f"Tare value set: {tare_value}")
+                    tare_values = [interpolate_to_volume(value) for value in sensor_values]
+                    print(f"Tare values set: {tare_values}")
                     
             else:
                 print(f"Line format is incorrect: {line}")
@@ -80,8 +78,14 @@ def data_collection():
         ser = serial.Serial(serial_port, baud_rate, timeout=10)
 
         with open(file_path, 'w') as file:
-            file.write("Timestamp(s)\tSensor 1 Value (raw)\tSensor 2 Value (raw)\tSensor 3 Value (raw)\tSensor 4 Value (raw)\tSensor 5 Value (raw)\tVolume (mL)\tGrams\n")
+            num_sensors = 5
 
+            header = "Timestamp(s)"
+            for i in range(1, num_sensors + 1):
+                header += f"\tLoadcell {i} Value (raw)\tLoadcell {i} Volume (mL)\tLoadcell {i} Grams(g)"
+            header += "\n"
+            file.write(header)
+            file.flush()  # Ensure data is written to the file immediately
             while True:
                 if ser.in_waiting > 0:
                     line = ser.readline().decode('utf-8').strip()
@@ -102,15 +106,24 @@ def data_collection():
                                 
                                 # If tare value is set, subtract it from the current sensor value
                                 if tare_value is not None and sensor_values:
-                                    volume_mL = interpolate_to_volume(sensor_values[0])  # Assuming Loadcell 1 is used for volume
-                                    grams = volume_mL - tare_value  # Calculate grams as difference
+
+                                    volume_mL = [interpolate_to_volume(value) for value in sensor_values]  # Get all loadcell
+                                    grams = [a-b for a,b in zip(volume_mL , tare_value)]  # Calculate grams as difference
                                     
                                     # Print the converted values for debugging, formatted to 1 decimal place
                                     print(f"Interpolated grams: {grams:.1f} grams")                                   
                                     
                                     # Write the data to the file, formatted to 1 decimal place
                                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                                    file.write(f"{timestamp}\t" + "\t".join([f"{value:.1f}" for value in sensor_values]) + f"\t{volume_mL:.1f}\t{grams:.1f}\n")
+                                    file.write(
+                                        f"{timestamp}\t"
+                                        + "\t".join([f"{value:.1f}" for value in sensor_values])
+                                        + "\t"
+                                        + "\t".join([f"{v:.1f}" for v in volume_mL])
+                                        + "\t"
+                                        + "\t".join([f"{g:.1f}" for g in grams])
+                                        + "\n"
+                                    )
                                     file.flush()  # Ensure data is written to the file immediately
                             else:
                                 print(f"Line format is incorrect: {line}")
