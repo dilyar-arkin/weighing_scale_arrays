@@ -1,1 +1,2 @@
-![alt text](DAQ_flow_diagram.png)
+![DAQ_process](DAQ_process_flow.png)
+
