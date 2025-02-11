@@ -1,1 +1,1 @@
-[DAQ process flow diagram](DAQ_flow_diagram.pdf)
+![alt text](DAQ_flow_diagram.png)
